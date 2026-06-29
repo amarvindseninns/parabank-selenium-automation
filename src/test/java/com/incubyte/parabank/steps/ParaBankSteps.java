@@ -3,9 +3,11 @@ package com.incubyte.parabank.steps;
 import com.incubyte.parabank.pages.AccountsOverviewPage;
 import com.incubyte.parabank.pages.HomePage;
 import com.incubyte.parabank.pages.RegisterPage;
+import com.incubyte.parabank.utils.AppConfig;
 import com.incubyte.parabank.utils.CredentialMasker;
-import com.incubyte.parabank.utils.DriverFactory;
+import com.incubyte.parabank.utils.DriverManager;
 import com.incubyte.parabank.utils.LoggerUtil;
+import com.incubyte.parabank.utils.MoneyUtil;
 import com.incubyte.parabank.utils.RegistrationData;
 import com.incubyte.parabank.utils.ScenarioContext;
 import com.incubyte.parabank.utils.TestData;
@@ -13,8 +15,8 @@ import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.When;
-import org.openqa.selenium.WebDriver;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -22,111 +24,197 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ParaBankSteps {
-    private final WebDriver driver = DriverFactory.getDriver();
+    private static final List<String> EXPECTED_MANDATORY_FIELD_ERRORS = List.of(
+            "First name is required.",
+            "Last name is required.",
+            "Address is required.",
+            "City is required.",
+            "State is required.",
+            "Zip Code is required.",
+            "Social Security Number is required.",
+            "Username is required.",
+            "Password is required.",
+            "Password confirmation is required."
+    );
+
     private final ScenarioContext scenarioContext = new ScenarioContext();
-    private final HomePage homePage = new HomePage(driver);
-    private final RegisterPage registerPage = new RegisterPage(driver);
-    private final AccountsOverviewPage accountsOverviewPage = new AccountsOverviewPage(driver);
+    private HomePage homePage;
+    private RegisterPage registerPage;
+    private AccountsOverviewPage accountsOverviewPage;
 
-    @Given("I am on the ParaBank home page")
+    private HomePage homePage() {
+        if (homePage == null) {
+            homePage = new HomePage(DriverManager.getDriver());
+        }
+        return homePage;
+    }
+
+    private RegisterPage registerPage() {
+        if (registerPage == null) {
+            registerPage = new RegisterPage(DriverManager.getDriver());
+        }
+        return registerPage;
+    }
+
+    private AccountsOverviewPage accountsOverviewPage() {
+        if (accountsOverviewPage == null) {
+            accountsOverviewPage = new AccountsOverviewPage(DriverManager.getDriver());
+        }
+        return accountsOverviewPage;
+    }
+
+
+    private RegistrationData registerNewUniqueUserWithRetry() {
+        int maxAttempts = AppConfig.registrationRetryCount();
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            RegistrationData user = TestData.validRegistrationData();
+            LoggerUtil.info("Registering user attempt " + attempt + " of " + maxAttempts
+                    + ": " + CredentialMasker.maskUsername(user.username()));
+
+            homePage().goToRegister();
+            registerPage().registerUser(user);
+
+            boolean registrationSucceeded = registerPage().waitForSuccessfulRegistrationOrDuplicateUsername(user.username());
+            if (registrationSucceeded) {
+                LoggerUtil.info("Registration completed for user: " + CredentialMasker.maskUsername(user.username()));
+                return user;
+            }
+
+            if (registerPage().isDuplicateUsernameErrorDisplayed()) {
+                LoggerUtil.warn("Generated username already exists in ParaBank demo database: "
+                        + CredentialMasker.maskUsername(user.username()) + ". Retrying with a new username.");
+                homePage().open();
+                continue;
+            }
+
+            throw new AssertionError("Registration did not complete and no duplicate username error was displayed. "
+                    + "Current URL: " + DriverManager.getDriver().getCurrentUrl());
+        }
+
+        throw new AssertionError("Unable to register a unique ParaBank user after " + maxAttempts + " attempts.");
+    }
+
+    @Given("the user is on the ParaBank home page")
     public void iAmOnTheParaBankHomePage() {
-        homePage.open();
+        homePage().open();
+        LoggerUtil.info("Opened ParaBank home page");
     }
 
-    @When("I register as a new ParaBank user")
-    public void iRegisterAsANewParaBankUser() {
-        RegistrationData user = TestData.validRegistrationData();
+    @When("the user register as a new ParaBank user")
+    public void theUserRegisterAsANewParaBankUser() {
+        RegistrationData user = registerNewUniqueUserWithRetry();
         scenarioContext.setCreatedUser(user);
-
-        LoggerUtil.info("Registering user: " + CredentialMasker.maskUsername(user.username()));
-        homePage.goToRegister();
-        registerPage.registerUser(user);
     }
 
-    @Then("I should see successful registration message")
+    @Then("the user should see successful registration message")
     public void iShouldSeeSuccessfulRegistrationMessage() {
         RegistrationData user = scenarioContext.getCreatedUser();
 
-        String actualTitle = registerPage.getSuccessfulRegistrationTitle(user.username());
-        String actualMessage = registerPage.getSuccessMessage();
+        String actualTitle = registerPage().getSuccessfulRegistrationTitle(user.username());
+        String actualMessage = registerPage().getSuccessMessage();
 
         LoggerUtil.info("Registration success title: " + actualTitle);
         LoggerUtil.info("Registration success message: " + actualMessage);
 
-        assertEquals("Welcome " + user.username(), actualTitle);
-        assertTrue(actualMessage.contains("Your account was created successfully"));
+        assertEquals("Unexpected registration success title", "Welcome " + user.username(), actualTitle);
+        assertTrue("Unexpected registration success message",
+                actualMessage.contains("Your account was created successfully"));
     }
 
-    @When("I logout from ParaBank")
+    @When("the user logout from ParaBank")
     public void iLogoutFromParaBank() {
-        accountsOverviewPage.logout();
+        accountsOverviewPage().logout();
+        LoggerUtil.info("Logged out from ParaBank");
     }
 
-    @And("I login with the newly created user credentials")
+    @And("the user login with the newly created user credentials")
     public void iLoginWithTheNewlyCreatedUserCredentials() {
         RegistrationData user = scenarioContext.getCreatedUser();
 
         LoggerUtil.info("Logging in with username: " + CredentialMasker.maskUsername(user.username())
                 + " and password: " + CredentialMasker.maskPassword(user.password()));
-        homePage.login(user.username(), user.password());
+        homePage().login(user.username(), user.password());
     }
 
-    @Then("I should be logged in successfully")
+    @Then("the user should be logged in successfully")
     public void iShouldBeLoggedInSuccessfully() {
-        assertTrue("Accounts overview page was not displayed", accountsOverviewPage.isLoaded());
+        assertTrue("Accounts overview page was not displayed", accountsOverviewPage().isLoaded());
+        LoggerUtil.info("Accounts overview page displayed successfully");
     }
 
-    @And("I print the account amount displayed after login")
+    @And("the user print the account amount displayed after login")
     public void iPrintTheAccountAmountDisplayedAfterLogin() {
-        String amount = accountsOverviewPage.getDisplayedAmount();
+        String amount = accountsOverviewPage().getFirstDisplayedAmount();
+        scenarioContext.setAccountAmount(amount);
+
+        BigDecimal parsedAmount = MoneyUtil.parseDollarAmount(amount);
         LoggerUtil.info("Amount displayed after login: " + amount);
+
         assertFalse("Displayed amount should not be empty", amount.isBlank());
+        assertTrue("Displayed amount should be a valid dollar amount", parsedAmount.compareTo(BigDecimal.ZERO) >= 0);
     }
 
-    @When("I submit the registration form without mandatory details")
+    @When("the user submit the registration form without mandatory details")
     public void iSubmitTheRegistrationFormWithoutMandatoryDetails() {
-        homePage.goToRegister();
-        registerPage.submitEmptyRegistrationForm();
+        homePage().goToRegister();
+        registerPage().submitEmptyRegistrationForm();
     }
 
-    @Then("I should see registration validation errors")
+    @Then("the user should see registration validation errors")
     public void iShouldSeeRegistrationValidationErrors() {
-        List<String> validationErrors = registerPage.getValidationErrors();
+        List<String> validationErrors = registerPage().getValidationErrors();
+        scenarioContext.setValidationErrors(validationErrors);
+
         LoggerUtil.warn("Registration validation errors displayed: " + String.join(" | ", validationErrors));
 
         assertFalse("Expected mandatory field validation errors", validationErrors.isEmpty());
+        assertTrue("Mandatory field validation errors were incomplete. Actual errors: " + validationErrors,
+                validationErrors.containsAll(EXPECTED_MANDATORY_FIELD_ERRORS));
     }
 
-    @And("I try to register again with the same username")
+    @And("the user try to register again with the same username")
     public void iTryToRegisterAgainWithTheSameUsername() {
         RegistrationData existingUser = scenarioContext.getCreatedUser();
 
         LoggerUtil.info("Trying duplicate registration for username: "
                 + CredentialMasker.maskUsername(existingUser.username()));
-        homePage.goToRegister();
-        registerPage.registerUser(existingUser);
+        homePage().goToRegister();
+        registerPage().registerUser(existingUser);
     }
 
-    @Then("I should see duplicate username error message")
+    @Then("the user should see duplicate username error message")
     public void iShouldSeeDuplicateUsernameErrorMessage() {
-        String duplicateUsernameError = registerPage.getUsernameError();
+        String duplicateUsernameError = registerPage().getUsernameError();
         LoggerUtil.warn("Duplicate username error displayed: " + duplicateUsernameError);
 
-        assertTrue(duplicateUsernameError.contains("This username already exists"));
+        assertTrue("Expected duplicate username error, but found: " + duplicateUsernameError,
+                duplicateUsernameError.contains("This username already exists"));
     }
 
-    @When("I login with username {string} and password {string}")
+    @When("the user login with configured invalid credentials")
+    public void iLoginWithConfiguredInvalidCredentials() {
+        String username = AppConfig.invalidUsername();
+        String password = AppConfig.invalidPassword();
+
+        LoggerUtil.info("Attempting login with configured invalid username: " + CredentialMasker.maskUsername(username)
+                + " and password: " + CredentialMasker.maskPassword(password));
+        homePage().login(username, password);
+    }
+
+    @When("the user login with username {string} and password {string}")
     public void iLoginWithUsernameAndPassword(String username, String password) {
         LoggerUtil.info("Attempting login with username: " + CredentialMasker.maskUsername(username)
                 + " and password: " + CredentialMasker.maskPassword(password));
-        homePage.login(username, password);
+        homePage().login(username, password);
     }
 
-    @Then("I should see login error message")
+    @Then("the user should see login error message")
     public void iShouldSeeLoginErrorMessage() {
-        String loginError = homePage.getLoginErrorMessage();
+        String loginError = homePage().getLoginErrorMessage();
         LoggerUtil.warn("Invalid login error displayed: " + loginError);
 
-        assertTrue(loginError.contains("The username and password could not be verified"));
+        assertTrue("Expected invalid login error, but found: " + loginError,
+                loginError.contains("The username and password could not be verified"));
     }
 }

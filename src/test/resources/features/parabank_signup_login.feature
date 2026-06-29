@@ -1,31 +1,36 @@
+@parabank @regression
 Feature: ParaBank user registration and login
 
   Background:
-    Given I am on the ParaBank home page
+    Given the user is on the ParaBank home page
 
-  @smoke @positive
-  Scenario: Register a new user and login successfully
-    When I register as a new ParaBank user
-    Then I should see successful registration message
-    When I logout from ParaBank
-    And I login with the newly created user credentials
-    Then I should be logged in successfully
-    And I print the account amount displayed after login
+  @TC_001 @smoke @positive @e2e @registration @login
+  Scenario: TC_001 Register a new user and login successfully
+    When the user register as a new ParaBank user
+    Then the user should see successful registration message
+    When the user logout from ParaBank
+    And the user login with the newly created user credentials
+    Then the user should be logged in successfully
+    And the user print the account amount displayed after login
 
-  @negative @registration
-  Scenario: Registration with missing mandatory details should fail
-    When I submit the registration form without mandatory details
-    Then I should see registration validation errors
+  @TC_002 @negative @validation @registration
+  Scenario: TC_002 Registration with missing mandatory details should fail
+    When the user submit the registration form without mandatory details
+    Then the user should see registration validation errors
 
-  @edge @registration
-  Scenario: Registration with duplicate username should fail
-    When I register as a new ParaBank user
-    Then I should see successful registration message
-    When I logout from ParaBank
-    And I try to register again with the same username
-    Then I should see duplicate username error message
+  @TC_003 @negative @edge @validation @registration
+  Scenario: TC_003 Registration with duplicate username should fail
+    When the user register as a new ParaBank user
+    Then the user should see successful registration message
+    When the user logout from ParaBank
+    And the user try to register again with the same username
+    Then the user should see duplicate username error message
 
-  @negative @login
-  Scenario: Login with invalid credentials should fail
-    When I login with username "invalid_user_12345" and password "wrongPassword"
-    Then I should see login error message
+
+#  Website https://parabank.parasoft.com/parabank/overview.htm is accpeting any username password combination as credentials.
+#  Hence unable to validate invalid credentials use case
+
+#  @TC_004 @negative @validation @login
+#  Scenario: TC_004 Login with invalid credentials should fail
+#    When the user login with configured invalid credentials
+#    Then the user should see login error message

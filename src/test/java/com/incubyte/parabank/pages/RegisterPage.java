@@ -2,9 +2,12 @@ package com.incubyte.parabank.pages;
 
 import com.incubyte.parabank.utils.RegistrationData;
 import org.openqa.selenium.By;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class RegisterPage extends BasePage {
     private final By firstName = By.id("customer.firstName");
@@ -28,7 +31,14 @@ public class RegisterPage extends BasePage {
         super(driver);
     }
 
+    public void waitUntilLoaded() {
+        waitForText(pageTitle, "Signing up is easy!");
+        visible(firstName);
+        visible(registerButton);
+    }
+
     public void registerUser(RegistrationData data) {
+        waitUntilLoaded();
         type(firstName, data.firstName());
         type(lastName, data.lastName());
         type(address, data.address());
@@ -44,7 +54,27 @@ public class RegisterPage extends BasePage {
     }
 
     public void submitEmptyRegistrationForm() {
+        waitUntilLoaded();
         click(registerButton);
+    }
+
+    public boolean waitForSuccessfulRegistrationOrDuplicateUsername(String expectedUsername) {
+        String expectedTitle = "Welcome " + expectedUsername;
+        try {
+            return wait.until(webDriver -> {
+                if (isTextPresent(pageTitle, expectedTitle)) {
+                    return true;
+                }
+
+                if (isDuplicateUsernameErrorDisplayed()) {
+                    return false;
+                }
+
+                return null;
+            });
+        } catch (TimeoutException exception) {
+            return false;
+        }
     }
 
     public String getSuccessfulRegistrationTitle(String expectedUsername) {
@@ -58,21 +88,24 @@ public class RegisterPage extends BasePage {
         return text(successMessage);
     }
 
-    public boolean hasValidationErrors() {
-        visible(validationErrors);
-        return driver.findElements(validationErrors).stream().anyMatch(element -> element.isDisplayed());
+    public List<String> getValidationErrors() {
+        return allVisible(validationErrors)
+                .stream()
+                .filter(element -> !element.getText().isBlank())
+                .map(element -> element.getText().trim())
+                .toList();
     }
 
-    public List<String> getValidationErrors() {
-        visible(validationErrors);
-        return driver.findElements(validationErrors)
+    public boolean isDuplicateUsernameErrorDisplayed() {
+        return driver.findElements(usernameError)
                 .stream()
-                .filter(element -> element.isDisplayed() && !element.getText().isBlank())
-                .map(element -> element.getText().trim())
-                .collect(Collectors.toList());
+                .filter(WebElement::isDisplayed)
+                .map(WebElement::getText)
+                .anyMatch(message -> message.contains("This username already exists"));
     }
 
     public String getUsernameError() {
+        wait.until(ExpectedConditions.visibilityOfElementLocated(usernameError));
         return text(usernameError);
     }
 }

@@ -8,12 +8,16 @@ import org.junit.runner.RunWith;
 @CucumberOptions(
         features = "src/test/resources/features",
         glue = {"com.incubyte.parabank.steps", "com.incubyte.parabank.hooks"},
+        tags = "not @ignore",
         plugin = {
                 "pretty",
                 "html:target/cucumber-report.html",
-                "json:target/cucumber-report.json"
+                "json:target/cucumber-report.json",
+                "junit:target/cucumber-report.xml",
+                "rerun:target/rerun.txt"
         },
-        monochrome = true
+        monochrome = true,
+        publish = false
 )
 public class TestRunner {
 }

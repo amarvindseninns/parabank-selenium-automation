@@ -1,22 +1,28 @@
 package com.incubyte.parabank.utils;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.UUID;
 
 public final class TestData {
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final DateTimeFormatter USERNAME_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("MMddHHmmssSSS");
+
     private TestData() {
     }
 
     public static String uniqueUsername() {
-    //        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"));
-    //        return "auto_user_" + timestamp;
-        return "testuser" + UUID.randomUUID().toString().substring(0, 8);
+
+        String uuId = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return "TestUser_"+uuId;
+
     }
 
     public static RegistrationData validRegistrationData() {
         String username = uniqueUsername();
-        String password = "Password@123";
+        String password = AppConfig.defaultPassword();
 
         return new RegistrationData(
                 "Automation",

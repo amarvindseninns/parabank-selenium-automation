@@ -10,6 +10,7 @@ public class HomePage extends BasePage {
     private final By passwordInput = By.name("password");
     private final By loginButton = By.cssSelector("input[value='Log In']");
     private final By errorMessage = By.cssSelector("#rightPanel .error");
+    private final By customerLoginTitle = By.cssSelector("#leftPanel h2");
 
     public HomePage(WebDriver driver) {
         super(driver);
@@ -17,10 +18,18 @@ public class HomePage extends BasePage {
 
     public void open() {
         driver.get(AppConfig.baseUrl());
+        waitUntilLoaded();
+    }
+
+    public void waitUntilLoaded() {
+        visible(customerLoginTitle);
+        visible(usernameInput);
+        visible(passwordInput);
     }
 
     public void goToRegister() {
         click(registerLink);
+        waitForUrlContaining("register");
     }
 
     public void login(String username, String password) {
